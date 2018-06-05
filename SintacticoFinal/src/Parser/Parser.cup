@@ -1,0 +1,431 @@
+package Parser;
+
+/* Import the class java_cup.runtime.*  */
+import java_cup.runtime.*;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.FileReader;
+import Ast.*;
+
+
+
+action code {:
+	//Hashtable table = new Hashtable();
+:};
+
+/*Errores que se encontraran*/
+parser code 
+{:
+    public AstNode raiz = null; //Crea el nodo raiz en nulo.
+    public String produc = ""; //Crea el string de las producciones a concatenar.
+
+	/* Reporte de error encontrado. */
+    public void report_error(String message, Object info) {
+        StringBuilder m = new StringBuilder("Error");
+        if (info instanceof java_cup.runtime.Symbol) {
+            java_cup.runtime.Symbol s = ((java_cup.runtime.Symbol) info);
+            if (s.left >= 0) {                
+                m.append(" en la linea "+ (s.left+1));
+                if (s.right >= 0)
+                    m.append(", columna "+ (s.right+1));
+            }
+        }
+        m.append(" : "+message);
+        System.err.println(m);
+    }
+    /* Cuando se encuentra un error de donde el sistema no puede
+        recuperarse, se lanza un error fatal. Se despliega el mensaje
+        de error y se finaliza la ejecucion. */
+    public void report_fatal_error(String message, Object info) {
+        report_error(message, info);
+        System.exit(1);
+    }
+
+:};
+
+/* ------------Declaracion de simbolos terminales y no terminales---------- */
+   
+/* Terminales (tokens obtenidos por el analizador lexico).  
+   Terminales que no tienen un valor son listados primero, los terminales que tienen un valor como los enteros son listados en la segunda o demas lineas. */
+   
+   terminal Symbol INT, SUMA, RESTA, DIVISION, MULTIPLICACION, ASIGNACION, IF, ELSE, WHILE, FOR, VOID, RETURN, POTENCIA, EXPONENCIACION, MENORQUE, MENORIGUAL, MAYORQUE, MAYORIGUAL, IGUALDAD, DISTINTO, PARENIZQ, PUNTOCOMA, PARENDER, LLAVEIZQ, LLAVEDER,CORCHETEIZQ, CORCHETEDER, COMA;
+
+   terminal String NUM;
+   terminal String ID;
+
+   /* No terminales usados en la seccion gramatical. 
+
+   Primero se lista los no terminales que tienen un valor Object y despues
+   se lista los no terminales que tienen un entero. Un Object se refiere a que
+   no tienen tipo, pudiendo ser entero o String. */
+
+   non terminal AstNode program, declaration_list, declaration, var_declaration, fun_declaration, params, param_list, param,compound_stmt,local_declarations,statement_list,statement,expression_stmt,selection_stmt,iteration_stmt,while_stmt, for_stmt,return_stmt,expression,var,simple_expression,additive_expression,term,factor,exp,call,args,arg_list; 
+
+   non terminal Integer relop,addop,mulop,powop,type_specifier;
+
+   nonterminal empty;
+
+   //Precedencias lo mas importante es la multiplicacion y asi hasta el caso de else e if.
+   //Se utiliza la precedencia por la izq mas info en el informe.
+   
+   precedence nonassoc MAYORQUE, MENORIGUAL, MENORQUE, MAYORIGUAL, IGUALDAD, DISTINTO;
+   
+   //SEGUN LO VISTO EN CLASES DEBIERA SER 
+   //precedence nonassoc IF, ELSE;
+   precedence nonassoc ELSE,IF; // listo (preguntar)
+   precedence left SUMA, RESTA;
+   precedence left ASIGNACION;
+   precedence left MULTIPLICACION, DIVISION;
+   precedence left POTENCIA,EXPONENCIACION;
+
+
+   start with program;
+
+   program::= declaration_list:dl{:this.parser.raiz = new AstProgram(dl);
+   System.out.println("Prog");
+   		this.parser.produc += "PROGRAM::= DECLARATION_LIST\n";
+   		RESULT = this.parser.raiz;:};
+
+   declaration_list::= declaration_list:dl declaration:d{:
+   System.out.println("DeclList");
+	   		this.parser.produc += "DECLARATION_LIST::= DECLARATION_LIST DECLARATION\n";
+	   		RESULT = d;
+	   		d.setHermano(dl);
+	   :}
+	    | declaration:d{:
+	    System.out.println("DeclEnd");
+	    	this.parser.produc += "DECLARATION_LIST::= DECLARATION\n";
+	   		RESULT = d;
+    	:};
+
+   declaration::= var_declaration:vd{:
+   System.out.println("VarDecl");
+	   		this.parser.produc += "DECLARATION::= VAR_DECLARATION\n";
+	   		RESULT = vd;
+	   :}
+	   | fun_declaration:fd{:
+	   		System.out.println("FunDecl");
+	   		this.parser.produc += "DECLARATION::= FUN_DECLARATION\n";
+	   		RESULT = fd;
+	   :};
+
+   var_declaration::= type_specifier:ts ID:id PUNTOCOMA:pc{:
+   System.out.println("VarDecl");
+	   		this.parser.produc += "VAR_DECLARATION::= TYPE_SPECIFIER ID PUNTOCOMA\n";
+	   		RESULT = new AstVarDec(ts,id,false,null); //Identifica que no llega un corchete.
+	   :}
+	   
+	   | type_specifier:ts ID:id CORCHETEIZQ:bl NUM:num CORCHETEDER:br PUNTOCOMA:pc{:
+	   		System.out.println("VarDecl[]");
+	   		this.parser.produc += "VAR_DECLARATION::= TYPE_SPECIFIER ID CORCHETEIZQ NUM CORCHETEDER PUNTOCOMA\n";
+	   		RESULT = new AstVarDec(ts,id,true,num);
+	   :};
+
+   type_specifier::= INT{:
+   System.out.println("Int");
+	   		this.parser.produc += "TYPE_SPECIFIER::= INT\n";
+	   		RESULT = sym.INT;
+	   :}
+	   | VOID{:
+	   		System.out.println("Void");
+	   		this.parser.produc += "TYPE_SPECIFIER::= VOID\n";
+	   		RESULT = sym.VOID;
+	   :};
+
+   fun_declaration::= type_specifier:ts ID:id PARENIZQ:pl params:pa PARENDER:pr compound_stmt:cs{:
+	   		System.out.println("Fun_Decl");
+	   		this.parser.produc += "FUN_DECLARATION::= TYPE_SPECIFIER ID PARENIZQ PARAMS PARENDER COMPOUND_STMT\n";
+	   		RESULT = new AstFunDec(ts,id,pa,cs);
+	   :};
+
+   params::= param_list:pl{:
+   System.out.println("Params");
+	   		this.parser.produc += "PARAMS::= PARAM_LIST\n";
+	   		RESULT = pl;
+	   :}
+	   | VOID:v{:
+	   System.out.println("VoidParam");
+	   		this.parser.produc += "PARAMS::= VOID\n";
+	   		RESULT = new AstParamDec(sym.VOID,null,false);
+	   :};
+
+   param_list::= param_list:pl COMA:c param:p{:
+   System.out.println("ParamList");
+	   		this.parser.produc += "PARAM_LIST::= PARAM_LIST COMA PARAM\n";
+	   		RESULT = p;
+	   		p.setHermano(pl);
+	   :}
+	   | param:p{:
+	   System.out.println("EndParamList");
+	   		this.parser.produc += "PARAM_LIST::= PARAM\n";
+	   		RESULT = p;
+	   :};
+
+   param::= type_specifier:ts ID:id{:
+   System.out.println("TypeSpecifierParama");
+	   		this.parser.produc += "PARAM::= TYPE_SPECIFIER ID\n";
+	   		RESULT = new AstParamDec(ts,id,false);
+	   :}
+	   | type_specifier:ts ID:id CORCHETEIZQ:bl CORCHETEDER:br{:
+	   System.out.println("TypeSpecifier[]Param");
+	   		this.parser.produc += "PARAM::= TYPE_SPECIFIER ID CORCHETEIZQ CORCHETEDER\n";
+	   		RESULT = new AstParamDec(ts,id,true);
+	   :};
+
+   compound_stmt::= LLAVEIZQ local_declarations:ld statement_list:sl LLAVEDER{:
+   System.out.println("Compound");
+	   		this.parser.produc += "COMPOUND_STMT::= LLAVEIZQ LOCAL_DECLARATIONS STATEMENT_LIST LLAVEDER\n";
+	   		RESULT = new AstCompStmt(ld,sl);
+	   :};
+
+   local_declarations::= local_declarations:ld var_declaration:vd{:
+   System.out.println("LocalDecl");
+	   		this.parser.produc += "LOCAL_DECLARATIONS::= LOCAL_DECLARATIONS VAR_DECLARATION\n";
+	   		RESULT = vd;
+	   		vd.setHermano(ld);
+	   :}
+	   | empty  {:
+	   System.out.println("LocalDeclEnd");
+	   		this.parser.produc += "LOCAL_DECLARATIONS::= EMPTY\n";
+	   		RESULT = null; //Ya que en la terminal esta Empty.
+	   :};
+
+   statement_list::= statement_list:sl statement:s{:
+   System.out.println("StmtList");
+	   		this.parser.produc += "STATEMENT_LIST::= STATEMENT_LIST STATEMENT\n";
+	   		RESULT = s;
+	   		s.setHermano(sl);
+	   :}
+	   | empty  {:
+	   System.out.println("StmtListEnd");
+	   		this.parser.produc += "STATEMENT_LIST::= EMPTY\n";
+	   		RESULT = null; //Ya que en la terminal esta Empty.
+	   :};
+
+   statement::= expression_stmt:es{:
+   System.out.println("Expression");
+	   		this.parser.produc += "STATEMENT::= EXPRESSION_STMT\n";
+	   		RESULT = es;
+	   
+	   :}
+	   | compound_stmt:cs{:
+	   System.out.println("Stmt->CompoundStmt");
+	   		this.parser.produc += "STATEMENT::= COMPOUND_STMT\n";
+	   		RESULT = cs;
+	   :}
+	   | selection_stmt:ss{:
+	   System.out.println("Stmt->SelectStmt");
+	   		this.parser.produc += "STATEMENT::= SELECTION_STMT\n";
+	   		RESULT = ss;
+	   :}
+	   | iteration_stmt:is{:
+	   System.out.println("Stmt->IterStmt");
+	   		this.parser.produc += "STATEMENT::= ITERATION_STMT\n";
+	   		RESULT = is;
+	   :}
+	   | return_stmt:rs{:
+	   System.out.println("Stmt->Ret");
+	   		this.parser.produc += "STATEMENT::= RETURN_STMT\n";
+	   		RESULT = rs;
+	   :};
+
+   expression_stmt::= expression:e PUNTOCOMA{:
+   System.out.println("ExprStmt");
+	   		this.parser.produc += "EXPRESSION_STMT::= EXPRESSION PUNTOCOMA\n";
+	   		RESULT = e;
+	   :}
+	   | PUNTOCOMA{:
+	   System.out.println("EmtpyStmt");
+	   		this.parser.produc += "EXPRESSION_STMT::= PUNTOCOMA\n";
+	   		RESULT = new AstVaciaStmt();
+	   :};
+
+   selection_stmt::= IF PARENIZQ expression:e PARENDER statement:s{:
+   System.out.println("IfNoElse");
+	   		this.parser.produc += "SELECTION_STMT::= IF PARENIZQ EXPRESSION PARENDER STATEMENT\n";
+	   		RESULT = new AstSelectStmt(e,s,null,false);
+	   :}
+	   | IF PARENIZQ:pl expression:e PARENDER:pr statement:s1 ELSE statement:s2{:
+	   	System.out.println("IfElse");
+	   		this.parser.produc += "SELECTION_STMT::= IF PARENIZQ EXPRESSION PARENDER STATEMENT ELSE STATEMENT\n";
+	   		RESULT = new AstSelectStmt(e,s1,s2,true);
+	   :};
+
+   iteration_stmt::= while_stmt:ws{:
+	   		this.parser.produc += "ITERATION_STMT::= WHILE_STMT\n";
+	   		RESULT = ws;
+	   :}
+	   | for_stmt:fs {:
+	                this.parser.produc += "iteration_stmt ::= for_stmt\n"; 
+	                RESULT = fs; 
+	   :};
+
+   while_stmt::= WHILE PARENIZQ:pl expression:e PARENDER:pr statement:s{:
+	   		this.parser.produc += "WHILE_STMT::= WHILE PARENIZQ EXPRESSION PARENDER STATEMENT\n";
+	   		RESULT = new AstIterStmt(e,s,false);
+	   :};
+	   for_stmt::= FOR PARENIZQ:pl expression:e1 COMA expression:e2 COMA expression:e3 PARENDER:pr statement:s{:
+	   		this.parser.produc += "FOR_STMT::= FOR PARENIZQ expression COMA expression COMA expression PARENDER STATEMENT\n";
+	   		RESULT = new AstIterStmt(e1,e2,e3,s);
+	   :};
+
+   return_stmt::= RETURN PUNTOCOMA{:
+	   		this.parser.produc += "RETURN_STMT::= RETURN PUNTOCOMA\n";
+	   		RESULT = new AstReturnStmt(null);
+	   :}
+	   | RETURN expression:e PUNTOCOMA{:
+	   		this.parser.produc += "RETURN_STMT::= RETURN EXPRESSION PUNTOCOMA\n";
+	   		RESULT = new AstReturnStmt(e);
+	   :};
+
+   expression::= var:v ASIGNACION expression:e{:
+	   		this.parser.produc += "EXPRESSION::= VAR ASIGNACION EXPRESSION\n";
+	   		RESULT = new AstExpAsign(v,e,sym.ASIGNACION);
+	   :}
+	   | simple_expression:se{:
+	   		this.parser.produc += "EXPRESSION::= SIMPLE_EXPRESSION\n";
+	   		RESULT = se;
+	   :};
+
+   var::= ID:id{:
+   System.out.println("VarCall");
+	   		this.parser.produc += "VAR::= ID\n";
+	   		RESULT = new AstExpVar(null,id,false);
+	   :}
+	   | ID:id CORCHETEIZQ expression:e CORCHETEDER{:
+	   System.out.println("Var[]Call");
+	   		this.parser.produc += "VAR::= ID CORCHETEIZQ EXPRESSION CORCHETEDER\n";
+	   		RESULT = new AstExpVar(e,id,true);
+	   :};
+
+   simple_expression::= additive_expression:ae1 relop:r additive_expression:ae2{:
+	   		this.parser.produc += "SIMPLE_EXPRESION::= ADITIVE_EXPRESION RELOP ADITIVE_EXPRESION\n";
+	   		RESULT = new AstExpBin(r,ae1,ae2);
+	   :}
+	   | additive_expression:ae{:
+	   		this.parser.produc += "SIMPLE_EXPRESION::= ADITIVE_EXPRESION\n";
+	   		RESULT = ae;
+	   :}; 
+
+   relop::= MENORIGUAL{:
+	   		this.parser.produc += "RELOP::= MENORIGUAL\n";
+	   		RESULT = sym.MENORIGUAL;
+	   :}
+	   | MENORQUE{:
+	   		this.parser.produc += "RELOP::= MENORQUE\n";
+	   		RESULT = sym.MENORQUE;
+	   :}
+	   | MAYORQUE{:
+	   		this.parser.produc += "RELOP::= MAYORQUE\n";
+	   		RESULT = sym.MAYORQUE;
+	   :}
+	   | MAYORIGUAL{:
+	   		this.parser.produc += "RELOP::= MAYORIGUAL\n";
+	   		RESULT = sym.MAYORIGUAL;
+	   :}
+	   | IGUALDAD{:
+	   		this.parser.produc += "RELOP::= IGUALDAD\n";
+	   		RESULT = sym.IGUALDAD;
+	   :}
+	   | DISTINTO{:
+	   		this.parser.produc += "RELOP::= DISTINTO\n";
+	   		RESULT = sym.DISTINTO;
+	   :};
+
+   additive_expression::= additive_expression:ae addop:a term:t{:
+	   		this.parser.produc += "ADDITIVE_EXPRESSION::= ADDITIVE_EXPRESSION ADDOP TERM\n";
+	   		RESULT = new AstExpBin(a,ae,t);
+	   :}
+	   | term:t{:
+	   		this.parser.produc += "ADDITIVE_EXPRESSION::= TERM\n";
+	   		RESULT = t;
+	   :};
+	   addop::= SUMA{:
+	   		this.parser.produc += "ADDOP::= SUMA\n";
+	   		RESULT = sym.SUMA;
+	   :}
+	   | RESTA{:
+	   		this.parser.produc += "ADDOP::= RESTA\n";
+	   		RESULT = sym.RESTA;
+	   :};
+
+   term::= term:t mulop:m factor:f{:
+	   		this.parser.produc += "TERM::= TERM MULOP FACTOR\n";
+	   		RESULT = new AstExpBin(m,t,f);
+	   :}
+	   | factor:f{:
+	   		this.parser.produc += "TERM::= FACTOR\n";
+	   		RESULT = f;
+	   :};
+
+   mulop::= MULTIPLICACION{:
+	   		this.parser.produc += "MULOP::= MULTIPLICACION\n";
+	   		RESULT = sym.MULTIPLICACION;
+	   :}
+	   | DIVISION{:
+	   		this.parser.produc += "MULOP::= DIVISION\n";
+	   		RESULT = sym.DIVISION;
+	   :};
+
+//duda Maxi,25-10-2016: "powop" es la exponenciacion????????????????????
+
+   factor::= factor:f powop:p exp:ex{:
+	   		this.parser.produc += "FACT::= FACTOR POWOP EXP\n";
+	   		RESULT = ex;
+	   :}
+	   | exp:ex{:
+	   		this.parser.produc += "FACTOR::= EXP\n";
+	   		RESULT = ex;
+	   :};
+
+   powop::= POTENCIA{:
+	   		this.parser.produc += "POWOP::= POTENCIA\n";
+	   		RESULT = sym.POTENCIA;
+	   :}
+	   | EXPONENCIACION{:
+	   		this.parser.produc += "POWOP::= EXPONENCIACION\n";
+	   		RESULT = sym.EXPONENCIACION;
+	   :};
+
+   exp::= PARENIZQ:pl expression:e PARENDER:pr{:
+	   		this.parser.produc += "EXP::= PARENIZQ EXPRESSION PARENDER\n";
+	   		RESULT = e;
+	   :}
+	   | var:v{:
+	   		this.parser.produc += "EXP::= VAR\n";
+	   		RESULT = v;
+	   :}
+	   | call:c{:
+	   		this.parser.produc += "EXP::= CALL\n";
+	   		RESULT = c;
+	   :}
+	   | NUM:n{:
+	   		this.parser.produc += "EXP::= NUM\n";
+	   		RESULT = new AstExpConst(n);
+	   :};
+
+   call::= ID:id PARENIZQ:pl args:a PARENDER:pr{:
+	   		this.parser.produc += "CALL::= ID PARENIZQ ARGS PARENDER\n";
+	   		RESULT = new AstExpFun(id,a);
+	   :}; 
+
+   args::= arg_list:al{:
+	   		this.parser.produc += "ARGS::= ARG_LIST\n";
+	   		RESULT = al;
+	   :}
+	   | empty {:
+	   		this.parser.produc += "ARGS::= EMPTY\n";
+	   		RESULT = null;
+	   :};
+
+   arg_list::= arg_list:al COMA expression:e{:
+	   		this.parser.produc += "ARG_LIST::= ARG_LIST COMA EXPRESSION\n";
+	   		RESULT = e;
+	   		e.setHermano(al);
+	   :}
+	   | expression:e{:
+	   		this.parser.produc += "ARG_LIST::= EXPRESSION\n";
+	   		RESULT = e;
+	   :};
+	   
+   empty ::= ;

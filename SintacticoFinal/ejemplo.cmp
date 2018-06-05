@@ -1,0 +1,14 @@
+void programa(int cant_1){
+  cant_2 ::= 13000;
+
+  If(cant_1 == 10000){
+    cant_1 ::= cant_1 + cant_2;
+  }ElsE{
+    cant_1 ::= cant_1 - cant_3;
+  }
+  If(cant_1 < 6000){
+    cant_1 ::= cant_1 * cant_2;
+  }ElsE{
+    cant_1 ::= cant_1 / cant_3;
+  }
+}

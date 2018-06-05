@@ -1,0 +1,9 @@
+int suma ::= 25;
+void ads(){
+	int [2] num ::= 7,8;
+	int pos ::= 0;
+	wHiLe (num [pos] == 7){
+		suma ::= suma + num[pos];
+		pos++;
+	}
+}

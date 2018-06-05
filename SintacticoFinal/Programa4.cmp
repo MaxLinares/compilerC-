@@ -1,0 +1,10 @@
+%este es un comentario de linea
+a ::= 1;
+b ::= 2;
+c ::= 3;
+
+/#esto es un
+comentario#/
+if(true){
+	a ::= [(a+b)*(c-a)]/(b*c+a);
+}
